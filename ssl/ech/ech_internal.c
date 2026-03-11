@@ -1492,25 +1492,46 @@ err:
  * copy one extension from outer to inner
  * di is the reconstituted inner CH
  * type2copy is the outer type to copy
- * extsbuf is the outer extensions buffer
- * extslen is the outer extensions buffer length
+ * exts is the outer extensions packet (changing as we go)
+ * index is the index of the outer
  * return 1 for good 0 for error
  */
 static int ech_copy_ext(SSL_CONNECTION *s, WPACKET *di, uint16_t type2copy,
-    const unsigned char *extsbuf, size_t extslen)
+    PACKET *exts, int index)
 {
-    PACKET exts;
     unsigned int etype, elen;
     const unsigned char *eval;
 
-    if (PACKET_buf_init(&exts, extsbuf, extslen) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    while (PACKET_remaining(&exts) > 0) {
-        if (!PACKET_get_net_2(&exts, &etype)
-            || !PACKET_get_net_2(&exts, &elen)
-            || !PACKET_get_bytes(&exts, &eval, elen)) {
+    /*
+     * First time in index is 0 and we're willing
+     * to skip until we find the first thing to
+     * copy, thereafter, the things we're looking
+     * for should be contiguous, so the next one
+     * should be what we're after
+     */
+    if (index == 0) {
+        while (PACKET_remaining(exts) > 0) {
+            if (!PACKET_get_net_2(exts, &etype)
+                || !PACKET_get_net_2(exts, &elen)
+                || !PACKET_get_bytes(exts, &eval, elen)) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                goto err;
+            }
+            if (etype == type2copy) {
+                if (!WPACKET_put_bytes_u16(di, etype)
+                    || !WPACKET_put_bytes_u16(di, elen)
+                    || !WPACKET_memcpy(di, eval, elen)) {
+                    SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                    goto err;
+                }
+                return 1;
+            }
+        }
+    } else {
+        /* not first time, we'll only check the next value */
+        if (!PACKET_get_net_2(exts, &etype)
+            || !PACKET_get_net_2(exts, &elen)
+            || !PACKET_get_bytes(exts, &eval, elen)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -1548,6 +1569,7 @@ static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
     unsigned int pi_tmp, etype, elen, outer_extslen;
     PACKET outer, session_id;
     size_t i;
+    int outers_done = 0;
 
     if (PACKET_buf_init(&outer, ob, ob_len) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1621,10 +1643,18 @@ static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
             goto err;
         }
         if (etype == TLSEXT_TYPE_outer_extensions) {
+            PACKET exts;
+
+            if (outers_done++) { /* just do this once */
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (PACKET_buf_init(&exts, outer_exts, outer_extslen) != 1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
             for (i = 0; i != n_outers; i++) {
-                if (ech_copy_ext(s, di, outers[i],
-                        outer_exts, outer_extslen)
-                    != 1)
+                if (ech_copy_ext(s, di, outers[i], &exts, i) != 1)
                     /* SSLfatal called already */
                     goto err;
             }
