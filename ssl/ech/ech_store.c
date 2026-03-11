@@ -393,6 +393,13 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, PACKET *pkt,
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
+    /*
+     * We don't really handle ECHConfig extensions as of now,
+     * (none are well-defined), so we're only skipping over
+     * whatever we find here. If/when adding real extensions
+     * then it may be neccesary to also check that the set of
+     * extensions loaded contain no duplicate types.
+     */
     if (!PACKET_get_length_prefixed_2(&ver_pkt, &exts)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
