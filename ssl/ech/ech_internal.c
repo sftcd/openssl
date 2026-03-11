@@ -1474,9 +1474,11 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
     }
     *n_outers = olen / 2;
     for (i = 0; i != *n_outers; i++) {
+        /* check for ones that are not allowed */
         if (!PACKET_get_net_2(&op, &pi_tmp)
-            || pi_tmp == TLSEXT_TYPE_outer_extensions) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            || pi_tmp == TLSEXT_TYPE_outer_extensions
+            || pi_tmp == TLSEXT_TYPE_ech) {
+            SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
             goto err;
         }
         outers[i] = (uint16_t)pi_tmp;
