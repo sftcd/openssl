@@ -613,39 +613,58 @@ triggering failures such as:
 ```bash
 #!/bin/bash
 #
-# run 16k tests
+# run 16k tests, with one later and later malloc fail
 
-# if you want tracing
-# export OPENSSL_TRACE="TLS"
-logfile=loads.log
-iter=0
+: "${logfile:='loads.log'}"
+# skip first 150 mallocs - failing then breaks init thing
+# which isn't interesting for this test
+: "${start:='150'}"
+# 16,000 calls without failures should be enough for the
+# test to pass - 15,802 calls to CRYPTO_malloc currently
+# seems to be ok for a pass in the test below
+: "${end:='16000'}"
+
+# To reproduce results, you may need to also set the
+# test seed, e.g.: OPENSSL_TEST_RAND_SEED=1773876997
+# You can see the value in the logfile, for tests
+# that are "not ok"
+
+# Let's fix OPENSSL_TEST_RAND_SEED to get more
+# deterministic behaviour so we can find issues more
+# easily
+# export OPENSSL_TEST_RAND_SEED=1
+
+# if you want tracing set OPENSSL_TRACE="TLS"
 
 function whenisitagain()
 {
     /bin/date -u +%Y%m%d-%H%M%S
 }
 NOW=$(whenisitagain)
-echo "==================================" >>$logfile
-echo "Started at $NOW" >>$logfile
+echo "==================================" >>"$logfile"
+echo "Started at $NOW" >>"$logfile"
 
-# 16,000 calls without failures should be enough for the
-# test to pass - gprof says we have 15,558 calls to
-# CRYPTO_malloc for the test below
-while ((iter < 16000))
+iter=$start
+maxiter=$end
+
+while ((iter < maxiter))
 do
-    echo "Doing $iter" >>$logfile
-    iter=$((iter+1))
-    export OPENSSL_MALLOC_FAILURES="$iter@0;0@99;"
-    ./test/ech_test -test 6 -iter 1 >>$logfile 2>&1
+    echo "Doing $iter" >>"$logfile"
+    # let the first $iter malloc's pass then fail one call
+    # export OPENSSL_MALLOC_FAILURES="$iter;1@0.999;0@0"
+    # let the first $iter malloc's pass then fail all
+    export OPENSSL_MALLOC_FAILURES="$iter;0@0.999"
+    ./test/ech_test -test 7 -iter 1 >>"$logfile" 2>&1
     echo "Done $iter"
-    echo "Done $iter" >>$logfile
-    echo "" >>$logfile
-    echo "" >>$logfile
+    echo "Done $iter" >>"$logfile"
+    iter=$((iter+1))
+    echo "" >>"$logfile"
+    echo "" >>"$logfile"
 done
 
 NOW=$(whenisitagain)
-echo "Ended at $NOW" >>$logfile
-echo "==================================" >>$logfile
+echo "Ended at $NOW" >>"$logfile"
+echo "==================================" >>"$logfile"
 ```
 
 An `OPENSSL_MALLOC_FAILURES` value of `100@0;0@99` means to allow the first 100
@@ -663,5 +682,5 @@ failure, so that'd be something like:
 ```
 
 The script above gets us from 75% lines of code covered based on normal tests
-to 85.6% for the `ech_internal.c` file, which is our least well covered by
+to 84.4% for the `ssl/ech/ech_internal.c` file, which is our least well covered by
 normal tests. The script takes about 20 minutes to run on a developer laptop.
