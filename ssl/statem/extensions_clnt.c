@@ -2876,11 +2876,11 @@ EXT_RETURN tls_construct_ctos_grease1(SSL_CONNECTION *s, WPACKET *pkt,
 {
     uint16_t grease_type;
  
+    if (!(s->options & SSL_OP_GREASE) || s->server)
+        return EXT_RETURN_NOT_SENT;
 #ifndef OPENSSL_NO_ECH
     ECH_SAME_EXT(s, context, pkt)
 #endif
-    if (!(s->options & SSL_OP_GREASE) || s->server)
-        return EXT_RETURN_NOT_SENT;
 
     grease_type = ossl_grease_value(s, OSSL_GREASE_EXT1);
 
@@ -2899,11 +2899,11 @@ EXT_RETURN tls_construct_ctos_grease2(SSL_CONNECTION *s, WPACKET *pkt,
 {
     uint16_t grease_type;
 
+    if (!(s->options & SSL_OP_GREASE) || s->server)
+        return EXT_RETURN_NOT_SENT;
 #ifndef OPENSSL_NO_ECH
     ECH_SAME_EXT(s, context, pkt)
 #endif
-    if (!(s->options & SSL_OP_GREASE) || s->server)
-        return EXT_RETURN_NOT_SENT;
 
     grease_type = ossl_grease_value(s, OSSL_GREASE_EXT2);
 
