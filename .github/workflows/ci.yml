@@ -890,3 +890,20 @@ jobs:
         cd ../..
     - name: Test ECH with NSS
       run: make test TESTS='test_external_ech_nss' V=1
+
+  external-test-hpke-golang:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@v6
+      with:
+         go-version: '1.24'
+    - name: Configure OpenSSL
+      run: ./config enable-external-tests
+    - name: Build OpenSSL
+      run: make -s -j4
+    - name: Test HPKE interop with golang
+      run: make test TESTS='test_external_hpke_golang' V=1
+
