@@ -28,7 +28,7 @@
 #define OSSL_HPKE_MAX_PARMLEN 66
 #define OSSL_HPKE_MAX_PQIKMLEN (32 + 128) /* Allows for Hybrid PQ */
 #define OSSL_HPKE_MIN_PSKLEN 32
-#define OSSL_HPKE_MAX_INFOLEN 1024
+#define OSSL_HPKE_MAX_INFOLEN 16384 /* as per HPKE section 7.2.1 SHOULD */
 
 /*
  * The (16bit) HPKE algorithm ID IANA codepoints

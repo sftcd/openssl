@@ -30,7 +30,7 @@ extern "C" {
  */
 #define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /* max ECH ciphertext to en/decode */
 #define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /* min for all encodings */
-#define OSSL_ECH_MAX_ECHCONFIG_LEN 1500 /* max for all encodings */
+#define OSSL_ECH_MAX_ECHCONFIG_LEN 4096 /* max for encodings, upped for PQ */
 #define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 512 /* ECHConfig extension max */
 #define OSSL_ECH_MAX_MAXNAMELEN 255 /* ECHConfig max for max name length */
 #define OSSL_ECH_MAX_PUBLICNAME 255 /* max ECHConfig public name length */
