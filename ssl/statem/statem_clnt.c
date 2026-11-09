@@ -1363,10 +1363,9 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
-            memcpy(s->session->session_id, s->tmp_session_id, sess_id_len);
-            s->session->session_id_length = sess_id_len;
         } else {
             sess_id_len = 0;
+            s->tmp_session_id_len = 0;
         }
     } else {
         assert(s->session->session_id_length <= sizeof(s->session->session_id));
@@ -1591,10 +1590,13 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
             SSLfatal(s, SSL_AD_PROTOCOL_VERSION, SSL_R_UNSUPPORTED_SSL_VERSION);
             return CON_FUNC_ERROR;
         }
-        if ((s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0)
+        if ((s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
             sess_id_len = sizeof(s->tmp_session_id);
-        else
+            session_id = s->tmp_session_id;
+            sess_id_len = s->tmp_session_id_len;
+        } else {
             sess_id_len = 0;
+        }
     } else {
 #endif
         if (s->new_session || s->session->ssl_version == version1_3) {
